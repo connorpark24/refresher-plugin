@@ -6,16 +6,10 @@ import {
 	TFile,
 	Notice,
 } from "obsidian";
-
-import { ChatOpenAI, OpenAIEmbeddings } from "@langchain/openai";
+import { MyModal } from "./MyModal";
+import { ChatOpenAI } from "@langchain/openai";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
-import { createRetrievalChain } from "langchain/chains/retrieval";
-import { createHistoryAwareRetriever } from "langchain/chains/history_aware_retriever";
-import { Chroma } from "@langchain/community/vectorstores/chroma";
-import {
-	ChatPromptTemplate,
-	MessagesPlaceholder,
-} from "@langchain/core/prompts";
+import { loadSummarizationChain } from "langchain/chains";
 
 interface MyPluginSettings {
 	folderPath: string;
@@ -35,19 +29,19 @@ export default class MyPlugin extends Plugin {
 
 		this.addSettingTab(new SampleSettingTab(this.app, this));
 
-		this.addRibbonIcon("dice", "Summarize Notes", async () => {
+		this.addRibbonIcon("clock-4", "Summarize Notes", async () => {
 			const notes = await this.getNotesFromFolder(
 				this.settings.folderPath
 			);
 			const summaries = await this.summarizeNotes(notes);
-			new Notice(`Today's summaries:\n\n${summaries.join("\n\n")}`);
+			new MyModal(this.app, summaries).open();
 		});
 	}
 
 	onunload() {}
 
 	async getNotesFromFolder(folderPath: string): Promise<TFile[]> {
-		const folder = this.app.vault.getAbstractFileByPath(folderPath);
+		const folder = this.app.vault.getFolderByPath(folderPath);
 		const notes: TFile[] = [];
 		if (folder && folder.children) {
 			for (const child of folder.children) {
@@ -56,63 +50,49 @@ export default class MyPlugin extends Plugin {
 				}
 			}
 		}
-		return notes.slice(0, 3); // Pick the first three notes
+
+		const shuffledNotes = notes.sort(() => Math.random() - Math.random());
+
+		return shuffledNotes.slice(0, 3);
 	}
 
-	async summarizeNotes(notes: TFile[]): Promise<string[]> {
-		const docs = await Promise.all(
-			notes.map(async (note) => {
-				const content = await this.app.vault.read(note);
-				return {
-					metadata: { source: note.path },
-					page_content: content,
-				};
-			})
-		);
+	async summarizeNotes(
+		notes: TFile[]
+	): Promise<{ name: string; summary: string }[]> {
+		const summaries: { name: string; summary: string }[] = [];
+		const apiKey = this.settings.apiKey;
 
-		const textSplitter = new RecursiveCharacterTextSplitter({
-			chunk_size: 1000,
-			chunk_overlap: 200,
+		const llm = new ChatOpenAI({
+			apiKey: apiKey,
+			modelName: "gpt-4",
+			temperature: 0,
+			maxTokens: 200,
 		});
-		const splits = textSplitter.splitDocuments(docs);
 
-		const vectorstore = await Chroma.fromDocuments(
-			splits,
-			new OpenAIEmbeddings({ apiKey: this.settings.apiKey })
-		);
-		const retriever = vectorstore.asRetriever();
+		const chain = await loadSummarizationChain(llm, {
+			type: "stuff",
+		});
 
-		const system_prompt =
-			"You are an assistant for helping a student review old notes. Given the collection of notes, bring up 3 specific topics for review and explain them in a way that is easy to understand.\n\n{context}";
-		const qa_prompt = ChatPromptTemplate.from_messages([
-			{ role: "system", content: system_prompt },
-			MessagesPlaceholder("chat_history"),
-			{ role: "human", content: "{input}" },
-		]);
+		for (const note of notes) {
+			const content = await this.app.vault.read(note);
+			const textSplitter = new RecursiveCharacterTextSplitter({
+				chunkSize: 1000,
+				chunkOverlap: 200,
+			});
 
-		const question_answer_chain = createStuffDocumentsChain(
-			new ChatOpenAI({ apiKey: this.settings.apiKey }),
-			qa_prompt
-		);
-		const history_aware_retriever = createHistoryAwareRetriever(
-			new ChatOpenAI({ apiKey: this.settings.apiKey }),
-			retriever,
-			qa_prompt
-		);
-		const rag_chain = createRetrievalChain(
-			history_aware_retriever,
-			question_answer_chain
-		);
+			const docs = await textSplitter.createDocuments([content]);
+			const result = await chain.invoke({
+				input_documents: docs,
+			});
 
-		const summaries = await Promise.all(
-			splits.map((split) =>
-				rag_chain.run({
-					input: "Summarize this note.",
-					chat_history: [],
-				})
-			)
-		);
-		return summaries.map((summary) => summary.answer);
+			const fullSummary = result.text;
+
+			summaries.push({
+				name: note.name,
+				summary: fullSummary.trim(),
+			});
+		}
+		return summaries;
 	}
 
 	async loadSettings() {
