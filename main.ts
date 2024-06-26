@@ -1,11 +1,4 @@
-import {
-	App,
-	Plugin,
-	PluginSettingTab,
-	Setting,
-	TFile,
-	Notice,
-} from "obsidian";
+import { App, Plugin, PluginSettingTab, Setting, TFile } from "obsidian";
 import { MyModal } from "./MyModal";
 import { ChatOpenAI } from "@langchain/openai";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
@@ -29,12 +22,16 @@ export default class MyPlugin extends Plugin {
 
 		this.addSettingTab(new SampleSettingTab(this.app, this));
 
-		this.addRibbonIcon("clock-4", "Summarize Notes", async () => {
+		this.addRibbonIcon("clock-4", "Refresh", async () => {
+			const modal = new MyModal(this.app, null);
+			modal.open();
+
 			const notes = await this.getNotesFromFolder(
 				this.settings.folderPath
 			);
 			const summaries = await this.summarizeNotes(notes);
-			new MyModal(this.app, summaries).open();
+
+			modal.updateSummaries(summaries);
 		});
 	}
 
