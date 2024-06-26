@@ -1,14 +1,31 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import {
+	App,
+	Plugin,
+	PluginSettingTab,
+	Setting,
+	TFile,
+	Notice,
+} from "obsidian";
 
-// Remember to rename these classes and interfaces!
+import { ChatOpenAI, OpenAIEmbeddings } from "@langchain/openai";
+import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
+import { createRetrievalChain } from "langchain/chains/retrieval";
+import { createHistoryAwareRetriever } from "langchain/chains/history_aware_retriever";
+import { Chroma } from "@langchain/community/vectorstores/chroma";
+import {
+	ChatPromptTemplate,
+	MessagesPlaceholder,
+} from "@langchain/core/prompts";
 
 interface MyPluginSettings {
-	mySetting: string;
+	folderPath: string;
+	apiKey: string;
 }
 
 const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default'
-}
+	folderPath: "School",
+	apiKey: "",
+};
 
 export default class MyPlugin extends Plugin {
 	settings: MyPluginSettings;
@@ -16,94 +33,98 @@ export default class MyPlugin extends Plugin {
 	async onload() {
 		await this.loadSettings();
 
-		// This creates an icon in the left ribbon.
-		const ribbonIconEl = this.addRibbonIcon('dice', 'Sample Plugin', (evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
-		});
-		// Perform additional things with the ribbon
-		ribbonIconEl.addClass('my-plugin-ribbon-class');
-
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status Bar Text');
-
-		// This adds a simple command that can be triggered anywhere
-		this.addCommand({
-			id: 'open-sample-modal-simple',
-			name: 'Open sample modal (simple)',
-			callback: () => {
-				new SampleModal(this.app).open();
-			}
-		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'sample-editor-command',
-			name: 'Sample editor command',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
-				console.log(editor.getSelection());
-				editor.replaceSelection('Sample Editor Command');
-			}
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-sample-modal-complex',
-			name: 'Open sample modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
-
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
-				}
-			}
-		});
-
-		// This adds a settings tab so the user can configure various aspects of the plugin
 		this.addSettingTab(new SampleSettingTab(this.app, this));
 
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			console.log('click', evt);
+		this.addRibbonIcon("dice", "Summarize Notes", async () => {
+			const notes = await this.getNotesFromFolder(
+				this.settings.folderPath
+			);
+			const summaries = await this.summarizeNotes(notes);
+			new Notice(`Today's summaries:\n\n${summaries.join("\n\n")}`);
 		});
-
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
 	}
 
-	onunload() {
+	onunload() {}
 
+	async getNotesFromFolder(folderPath: string): Promise<TFile[]> {
+		const folder = this.app.vault.getAbstractFileByPath(folderPath);
+		const notes: TFile[] = [];
+		if (folder && folder.children) {
+			for (const child of folder.children) {
+				if (child instanceof TFile && child.extension === "md") {
+					notes.push(child);
+				}
+			}
+		}
+		return notes.slice(0, 3); // Pick the first three notes
+	}
+
+	async summarizeNotes(notes: TFile[]): Promise<string[]> {
+		const docs = await Promise.all(
+			notes.map(async (note) => {
+				const content = await this.app.vault.read(note);
+				return {
+					metadata: { source: note.path },
+					page_content: content,
+				};
+			})
+		);
+
+		const textSplitter = new RecursiveCharacterTextSplitter({
+			chunk_size: 1000,
+			chunk_overlap: 200,
+		});
+		const splits = textSplitter.splitDocuments(docs);
+
+		const vectorstore = await Chroma.fromDocuments(
+			splits,
+			new OpenAIEmbeddings({ apiKey: this.settings.apiKey })
+		);
+		const retriever = vectorstore.asRetriever();
+
+		const system_prompt =
+			"You are an assistant for helping a student review old notes. Given the collection of notes, bring up 3 specific topics for review and explain them in a way that is easy to understand.\n\n{context}";
+		const qa_prompt = ChatPromptTemplate.from_messages([
+			{ role: "system", content: system_prompt },
+			MessagesPlaceholder("chat_history"),
+			{ role: "human", content: "{input}" },
+		]);
+
+		const question_answer_chain = createStuffDocumentsChain(
+			new ChatOpenAI({ apiKey: this.settings.apiKey }),
+			qa_prompt
+		);
+		const history_aware_retriever = createHistoryAwareRetriever(
+			new ChatOpenAI({ apiKey: this.settings.apiKey }),
+			retriever,
+			qa_prompt
+		);
+		const rag_chain = createRetrievalChain(
+			history_aware_retriever,
+			question_answer_chain
+		);
+
+		const summaries = await Promise.all(
+			splits.map((split) =>
+				rag_chain.run({
+					input: "Summarize this note.",
+					chat_history: [],
+				})
+			)
+		);
+		return summaries.map((summary) => summary.answer);
 	}
 
 	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		this.settings = Object.assign(
+			{},
+			DEFAULT_SETTINGS,
+			await this.loadData()
+		);
 	}
 
 	async saveSettings() {
 		await this.saveData(this.settings);
-	}
-}
-
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
-	}
-
-	onOpen() {
-		const {contentEl} = this;
-		contentEl.setText('Woah!');
-	}
-
-	onClose() {
-		const {contentEl} = this;
-		contentEl.empty();
 	}
 }
 
@@ -116,19 +137,36 @@ class SampleSettingTab extends PluginSettingTab {
 	}
 
 	display(): void {
-		const {containerEl} = this;
+		const { containerEl } = this;
 
 		containerEl.empty();
 
+		containerEl.createEl("h2", { text: "Settings for my plugin." });
+
 		new Setting(containerEl)
-			.setName('Setting #1')
-			.setDesc('It\'s a secret')
-			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
-				.onChange(async (value) => {
-					this.plugin.settings.mySetting = value;
-					await this.plugin.saveSettings();
-				}));
+			.setName("Folder Path")
+			.setDesc("Path to the folder containing notes to summarize")
+			.addText((text) =>
+				text
+					.setPlaceholder("Enter folder path")
+					.setValue(this.plugin.settings.folderPath)
+					.onChange(async (value) => {
+						this.plugin.settings.folderPath = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("OpenAI API Key")
+			.setDesc("API key for OpenAI")
+			.addText((text) =>
+				text
+					.setPlaceholder("Enter API key")
+					.setValue(this.plugin.settings.apiKey)
+					.onChange(async (value) => {
+						this.plugin.settings.apiKey = value;
+						await this.plugin.saveSettings();
+					})
+			);
 	}
 }
