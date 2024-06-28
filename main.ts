@@ -38,14 +38,22 @@ export default class MyPlugin extends Plugin {
 	onunload() {}
 
 	async getNotesFromFolder(folderPath: string): Promise<TFile[]> {
-		const folder = this.app.vault.getFolderByPath(folderPath);
+		console.log("ehll0");
+		const folder = this.app.vault.getAbstractFileByPath(folderPath);
 		const notes: TFile[] = [];
-		if (folder && folder.children) {
+
+		const traverseFolder = (folder: any) => {
 			for (const child of folder.children) {
 				if (child instanceof TFile && child.extension === "md") {
 					notes.push(child);
+				} else if (child.children) {
+					traverseFolder(child);
 				}
 			}
+		};
+
+		if (folder) {
+			traverseFolder(folder);
 		}
 
 		const shuffledNotes = notes.sort(() => Math.random() - Math.random());
