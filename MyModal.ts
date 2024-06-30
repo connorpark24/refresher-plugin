@@ -27,7 +27,8 @@ export class MyModal extends Modal {
 		contentEl.createEl("h2", { text: "Daily Refresher" });
 
 		this.summaries?.forEach((note) => {
-			contentEl.createEl("h3", { text: note.name });
+			const noteName = note.name.replace(/\.md$/, ""); // FIX THIS
+			contentEl.createEl("h3", { text: noteName });
 			contentEl.createEl("p", { text: note.summary });
 		});
 	}

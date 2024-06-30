@@ -56,9 +56,17 @@ export default class MyPlugin extends Plugin {
 			traverseFolder(folder);
 		}
 
-		const shuffledNotes = notes.sort(() => Math.random() - Math.random());
+		const randomIndices = new Set<number>();
+		while (randomIndices.size < 3 && randomIndices.size < notes.length) {
+			const randomIndex = Math.floor(Math.random() * notes.length);
+			randomIndices.add(randomIndex);
+		}
 
-		return shuffledNotes.slice(0, 3);
+		const selectedNotes = Array.from(randomIndices).map(
+			(index) => notes[index]
+		);
+
+		return selectedNotes;
 	}
 
 	async summarizeNotes(
