@@ -10,7 +10,7 @@ interface MyPluginSettings {
 }
 
 const DEFAULT_SETTINGS: MyPluginSettings = {
-	folderPath: "School",
+	folderPath: "",
 	apiKey: "",
 };
 
@@ -38,7 +38,6 @@ export default class MyPlugin extends Plugin {
 	onunload() {}
 
 	async getNotesFromFolder(folderPath: string): Promise<TFile[]> {
-		console.log("ehll0");
 		const folder = this.app.vault.getAbstractFileByPath(folderPath);
 		const notes: TFile[] = [];
 
