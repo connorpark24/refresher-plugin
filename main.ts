@@ -1,29 +1,29 @@
 import { App, Plugin, PluginSettingTab, Setting, TFile } from "obsidian";
-import { MyModal } from "./MyModal";
+import { RefresherModal } from "./RefresherModal";
 import { ChatOpenAI } from "@langchain/openai";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { loadSummarizationChain } from "langchain/chains";
 
-interface MyPluginSettings {
+interface NotesRefresherSettings {
 	folderPath: string;
 	apiKey: string;
 }
 
-const DEFAULT_SETTINGS: MyPluginSettings = {
+const DEFAULT_SETTINGS: NotesRefresherSettings = {
 	folderPath: "",
 	apiKey: "",
 };
 
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
+export default class NotesRefresher extends Plugin {
+	settings: NotesRefresherSettings;
 
 	async onload() {
 		await this.loadSettings();
 
-		this.addSettingTab(new SampleSettingTab(this.app, this));
+		this.addSettingTab(new NotesRefresherSettingTab(this.app, this));
 
 		this.addRibbonIcon("clock-4", "Refresh", async () => {
-			const modal = new MyModal(this.app, null);
+			const modal = new RefresherModal(this.app, null);
 			modal.open();
 
 			const notes = await this.getNotesFromFolder(
@@ -120,10 +120,10 @@ export default class MyPlugin extends Plugin {
 	}
 }
 
-class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
+class NotesRefresherSettingTab extends PluginSettingTab {
+	plugin: NotesRefresher;
 
-	constructor(app: App, plugin: MyPlugin) {
+	constructor(app: App, plugin: NotesRefresher) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}

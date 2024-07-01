@@ -1,6 +1,6 @@
 import { App, Modal } from "obsidian";
 
-export class MyModal extends Modal {
+export class RefresherModal extends Modal {
 	private summaries: { name: string; summary: string }[] | null;
 
 	constructor(
