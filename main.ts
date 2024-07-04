@@ -1,4 +1,11 @@
-import { App, Plugin, PluginSettingTab, Setting, TFile } from "obsidian";
+import {
+	App,
+	Plugin,
+	PluginSettingTab,
+	Setting,
+	TFile,
+	TFolder,
+} from "obsidian";
 import { RefresherModal } from "./RefresherModal";
 import { ChatOpenAI } from "@langchain/openai";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
@@ -22,7 +29,7 @@ export default class NotesRefresher extends Plugin {
 
 		this.addSettingTab(new NotesRefresherSettingTab(this.app, this));
 
-		this.addRibbonIcon("clock-4", "Refresh", async () => {
+		this.addRibbonIcon("clock-4", "Get Note Summaries", async () => {
 			const modal = new RefresherModal(this.app, null);
 			modal.open();
 
@@ -38,14 +45,14 @@ export default class NotesRefresher extends Plugin {
 	onunload() {}
 
 	async getNotesFromFolder(folderPath: string): Promise<TFile[]> {
-		const folder = this.app.vault.getAbstractFileByPath(folderPath);
+		const folder = this.app.vault.getFolderByPath(folderPath);
 		const notes: TFile[] = [];
 
-		const traverseFolder = (folder: any) => {
+		const traverseFolder = (folder: TFolder) => {
 			for (const child of folder.children) {
 				if (child instanceof TFile && child.extension === "md") {
 					notes.push(child);
-				} else if (child.children) {
+				} else if (child instanceof TFolder) {
 					traverseFolder(child);
 				}
 			}
@@ -133,10 +140,8 @@ class NotesRefresherSettingTab extends PluginSettingTab {
 
 		containerEl.empty();
 
-		containerEl.createEl("h2", { text: "Settings for my plugin." });
-
 		new Setting(containerEl)
-			.setName("Folder Path")
+			.setName("Folder path")
 			.setDesc("Path to the folder containing notes to summarize")
 			.addText((text) =>
 				text
@@ -149,7 +154,7 @@ class NotesRefresherSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName("OpenAI API Key")
+			.setName("OpenAI API key")
 			.setDesc("API key for OpenAI")
 			.addText((text) =>
 				text

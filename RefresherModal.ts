@@ -24,7 +24,7 @@ export class RefresherModal extends Modal {
 
 	displaySummaries(contentEl: HTMLElement) {
 		contentEl.empty();
-		contentEl.createEl("h2", { text: "Daily Refresher" });
+		contentEl.createEl("h2", { text: "Daily refresher" });
 
 		this.summaries?.forEach((note) => {
 			const noteName = note.name.replace(/\.md$/, "");
