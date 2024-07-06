@@ -29,7 +29,7 @@ export default class NotesRefresher extends Plugin {
 
 		this.addSettingTab(new NotesRefresherSettingTab(this.app, this));
 
-		this.addRibbonIcon("clock-4", "Get Note Summaries", async () => {
+		this.addRibbonIcon("clock-4", "Get note summaries", async () => {
 			const modal = new RefresherModal(this.app, null);
 			modal.open();
 
