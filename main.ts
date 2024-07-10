@@ -85,7 +85,7 @@ export default class NotesRefresher extends Plugin {
 			apiKey: apiKey,
 			modelName: "gpt-4",
 			temperature: 0,
-			maxTokens: 200,
+			maxTokens: 500,
 		});
 
 		const chain = await loadSummarizationChain(llm, {
