@@ -13,11 +13,13 @@ import { loadSummarizationChain } from "langchain/chains";
 
 interface NotesRefresherSettings {
 	folderPath: string;
+	notePattern: string;
 	apiKey: string;
 }
 
 const DEFAULT_SETTINGS: NotesRefresherSettings = {
 	folderPath: "",
+	notePattern: "",
 	apiKey: "",
 };
 
@@ -42,15 +44,18 @@ export default class NotesRefresher extends Plugin {
 		});
 	}
 
-	onunload() {}
+	onunload() { }
 
 	async getNotesFromFolder(folderPath: string): Promise<TFile[]> {
 		const folder = this.app.vault.getFolderByPath(folderPath);
 		const notes: TFile[] = [];
+		const regexMatcher = new RegExp(this.settings.notePattern);
 
 		const traverseFolder = (folder: TFolder) => {
 			for (const child of folder.children) {
-				if (child instanceof TFile && child.extension === "md") {
+				if (child instanceof TFile
+					&& child.extension === "md"
+					&& regexMatcher.test(child.basename)) {
 					notes.push(child);
 				} else if (child instanceof TFolder) {
 					traverseFolder(child);
@@ -149,6 +154,20 @@ class NotesRefresherSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.folderPath)
 					.onChange(async (value) => {
 						this.plugin.settings.folderPath = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
+
+		new Setting(containerEl)
+			.setName("Note pattern")
+			.setDesc("[optional] Regex pattern to match for note names")
+			.addText((text) =>
+				text
+					.setPlaceholder("EECS281 (.*)")
+					.setValue(this.plugin.settings.notePattern)
+					.onChange(async (value: string) => {
+						this.plugin.settings.notePattern = value.replace(/\\/g, "\\\\");
 						await this.plugin.saveSettings();
 					})
 			);
