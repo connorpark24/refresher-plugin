@@ -3,7 +3,7 @@
 	"name": "Notes Refresher",
 	"version": "1.0.2",
 	"minAppVersion": "1.6.5",
-	"description": "Provides AI-generated summaries (GPT) of 3 notes from your Vault every day.",
+	"description": "Provides AI-generated summaries (GPT) of three notes from your Vault every day.",
 	"author": "Connor Park",
 	"isDesktopOnly": true
 }
