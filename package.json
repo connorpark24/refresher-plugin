@@ -1,7 +1,7 @@
 {
 	"name": "notes-refresher",
-	"version": "1.0.1",
-	"description": "Provides summaries of notes from your Vault. ",
+	"version": "1.0.2",
+	"description": "Provides AI-generated summaries (GPT) of 3 notes from your Vault every day.",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
