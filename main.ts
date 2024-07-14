@@ -12,12 +12,14 @@ import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { loadSummarizationChain } from "langchain/chains";
 
 interface NotesRefresherSettings {
+	numSummaries: number;
 	folderPath: string;
 	notePattern: string;
 	apiKey: string;
 }
 
 const DEFAULT_SETTINGS: NotesRefresherSettings = {
+	numSummaries: 3,
 	folderPath: "",
 	notePattern: "",
 	apiKey: "",
@@ -44,7 +46,7 @@ export default class NotesRefresher extends Plugin {
 		});
 	}
 
-	onunload() { }
+	onunload() {}
 
 	async getNotesFromFolder(folderPath: string): Promise<TFile[]> {
 		const folder = this.app.vault.getFolderByPath(folderPath);
@@ -53,9 +55,11 @@ export default class NotesRefresher extends Plugin {
 
 		const traverseFolder = (folder: TFolder) => {
 			for (const child of folder.children) {
-				if (child instanceof TFile
-					&& child.extension === "md"
-					&& regexMatcher.test(child.basename)) {
+				if (
+					child instanceof TFile &&
+					child.extension === "md" &&
+					regexMatcher.test(child.basename)
+				) {
 					notes.push(child);
 				} else if (child instanceof TFolder) {
 					traverseFolder(child);
@@ -68,7 +72,10 @@ export default class NotesRefresher extends Plugin {
 		}
 
 		const randomIndices = new Set<number>();
-		while (randomIndices.size < 3 && randomIndices.size < notes.length) {
+		while (
+			randomIndices.size < this.settings.numSummaries &&
+			randomIndices.size < notes.length
+		) {
 			const randomIndex = Math.floor(Math.random() * notes.length);
 			randomIndices.add(randomIndex);
 		}
@@ -90,7 +97,7 @@ export default class NotesRefresher extends Plugin {
 			apiKey: apiKey,
 			modelName: "gpt-4",
 			temperature: 0,
-			maxTokens: 500,
+			maxTokens: 1000,
 		});
 
 		const chain = await loadSummarizationChain(llm, {
@@ -146,6 +153,18 @@ class NotesRefresherSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		new Setting(containerEl)
+			.setName("Number of note summaries")
+			.addText((text) =>
+				text
+					.setPlaceholder("3")
+					.setValue(this.plugin.settings.numSummaries.toString())
+					.onChange(async (value) => {
+						this.plugin.settings.numSummaries = parseInt(value, 10);
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
 			.setName("Folder path")
 			.setDesc("Path to the folder containing notes to summarize")
 			.addText((text) =>
@@ -158,7 +177,6 @@ class NotesRefresherSettingTab extends PluginSettingTab {
 					})
 			);
 
-
 		new Setting(containerEl)
 			.setName("Note pattern")
 			.setDesc("[optional] Regex pattern to match for note names")
@@ -167,7 +185,10 @@ class NotesRefresherSettingTab extends PluginSettingTab {
 					.setPlaceholder("EECS281 (.*)")
 					.setValue(this.plugin.settings.notePattern)
 					.onChange(async (value: string) => {
-						this.plugin.settings.notePattern = value.replace(/\\/g, "\\\\");
+						this.plugin.settings.notePattern = value.replace(
+							/\\/g,
+							"\\\\"
+						);
 						await this.plugin.saveSettings();
 					})
 			);
