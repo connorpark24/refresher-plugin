@@ -1,11 +1,11 @@
-import { App, Modal } from "obsidian";
+import { App, Modal, TFile } from "obsidian";
 
 export class RefresherModal extends Modal {
-	private summaries: { name: string; summary: string }[] | null;
+	private summaries: { file: TFile; summary: string }[] | null;
 
 	constructor(
 		app: App,
-		summaries: { name: string; summary: string }[] | null
+		summaries: { file: TFile; summary: string }[] | null
 	) {
 		super(app);
 		this.summaries = summaries;
@@ -27,8 +27,17 @@ export class RefresherModal extends Modal {
 		contentEl.createEl("h2", { text: "Daily refresher" });
 
 		this.summaries?.forEach((note) => {
-			const noteName = note.name.replace(/\.md$/, "");
-			contentEl.createEl("h3", { text: noteName });
+			const noteName = note.file.basename;
+			const noteLink = contentEl.createEl("a", {
+				text: noteName,
+				href: note.file.path,
+				cls: "note-link",
+			});
+			noteLink.addEventListener("click", (e) => {
+				e.preventDefault();
+				this.app.workspace.openLinkText(note.file.path, note.file.path);
+				this.close();
+			});
 			contentEl.createEl("p", { text: note.summary });
 		});
 	}
@@ -38,8 +47,16 @@ export class RefresherModal extends Modal {
 		contentEl.empty();
 	}
 
-	updateSummaries(summaries: { name: string; summary: string }[]) {
+	updateSummaries(summaries: { file: TFile; summary: string }[]) {
 		this.summaries = summaries;
 		this.displaySummaries(this.contentEl);
+	}
+
+	displayError(errorMessage: string) {
+		this.summaries = [];
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.createEl("h2", { text: "Daily refresher" });
+		contentEl.createEl("p", { text: "Error: " + errorMessage });
 	}
 }

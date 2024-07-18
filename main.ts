@@ -34,6 +34,15 @@ export default class NotesRefresher extends Plugin {
 		this.addSettingTab(new NotesRefresherSettingTab(this.app, this));
 
 		this.addRibbonIcon("clock-4", "Get note summaries", async () => {
+			if (!this.settings.apiKey) {
+				const modal = new RefresherModal(this.app, null);
+				modal.open();
+				modal.displayError(
+					"API key is not provided. Please enter your OpenAI API key in settings."
+				);
+				return;
+			}
+
 			const modal = new RefresherModal(this.app, null);
 			modal.open();
 
@@ -89,8 +98,8 @@ export default class NotesRefresher extends Plugin {
 
 	async summarizeNotes(
 		notes: TFile[]
-	): Promise<{ name: string; summary: string }[]> {
-		const summaries: { name: string; summary: string }[] = [];
+	): Promise<{ file: TFile; summary: string }[]> {
+		const summaries: { file: TFile; summary: string }[] = [];
 		const apiKey = this.settings.apiKey;
 
 		const llm = new ChatOpenAI({
@@ -119,7 +128,7 @@ export default class NotesRefresher extends Plugin {
 			const fullSummary = result.text;
 
 			summaries.push({
-				name: note.name,
+				file: note,
 				summary: fullSummary.trim(),
 			});
 		}

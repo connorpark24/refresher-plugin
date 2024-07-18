@@ -1,6 +1,6 @@
 {
 	"name": "notes-refresher",
-	"version": "1.0.2",
+	"version": "1.1.0",
 	"description": "Provides AI-generated summaries (GPT) of three notes from your Vault every day.",
 	"main": "main.js",
 	"scripts": {

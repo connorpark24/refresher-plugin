@@ -8,8 +8,16 @@
   margin: 0 auto;
 }
 
+
 @keyframes spin {
   to {
     transform: rotate(360deg);
   }
+}
+
+.note-link {
+  font-size: 1.5em;
+  font-weight: 600;
+  display: block;
+  margin-bottom: 0.5em;
 }
